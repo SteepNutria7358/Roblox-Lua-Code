@@ -1,0 +1,1479 @@
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+
+local remotes = game.ReplicatedStorage:WaitForChild("Remotes")
+
+local CombatSettings = require(game.ReplicatedStorage.Modules.CombatSettings)
+
+local combat = {}
+
+
+
+function combat.QueueInput(player, inputName)
+	local character = player.Character --The player argument is passed to the function. The code retrieves the player's Character (their avatar) from player.Character.
+
+	local Values = require(character.CombatValues) --This code loads a module or table of combat-related values from character.CombatValues using require().
+
+	if Values.queuedInput then --This checks if there's a previously queued input by accessing Values.queuedInput.
+		Values.queuedInput:Destroy() --If there is a queued input (i.e., Values.queuedInput is not nil), it destroys the existing queued input by calling Values.queuedInput:Destroy().
+		Values.queuedInput = nil --This sets Values.queuedInput to nil, clearing the old value.
+	end
+
+	local input = Instance.new("NumberValue") --A new NumberValue instance is created to represent the new input. This new input is an object with a Value property that is initially set to 0, and its name is set to inputName, which is the second argument passed to the function.
+	input.Value = 0
+	input.Name = inputName
+	Values.queuedInput = input
+
+
+	TweenService:Create(input, TweenInfo.new(0.5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 1}):Play() 
+end
+
+
+
+function combat.StopAllAnims(player, fadeTime, exceptions) --The function takes player, fadeTime, and exceptions as parameters. It first retrieves the player's character with player.Character.
+	local character = player.Character
+
+	local Values = require(character.CombatValues) --The CombatValues module or table associated with the player's character is accessed via require(character.CombatValues). This contains combat-related data, including a list of animations (Values.animations).
+
+
+	for _, anim in pairs(Values.animations) do --This code loops through all animations in the Values.animations table using for _, anim in pairs(Values.animations).
+		if anim then -- Each anim is an animation instance that could be currently playing on the character.
+			local isException = false
+			if exceptions then
+				for _, exception in pairs(exceptions) do --If an exceptions list is provided (i.e., exceptions is not nil), the code checks whether the current animation (anim) should be excluded from being stopped.
+					if exception == anim then --This code iterates over each exception in the exceptions table. If the anim matches any of the exceptions, the flag isException is set to true, meaning this animation will not be stopped.
+						isException = true
+					end
+				end
+			end
+
+			if not isException then --If isException is false (i.e., the animation is not in the exceptions list), the anim:Stop(fadeTime) method is called to stop the animation with a fade-out effect. The fadeTime parameter controls how long the fade-out transition will take.
+				anim:Stop(fadeTime)
+			end
+		end
+	end
+end
+
+
+
+function combat.StaminaStun(player, stunTime, name) --This function takes player, stunTime, and name as parameters.
+	local character = player.Character --It accesses the player’s Character using player.Character.
+
+	local Values = require(character.CombatValues) --This code loads the CombatValues module or table associated with the character using require(character.CombatValues).
+												   --This holds various properties and values related to the player's combat system, including staminaStuns, which is a collection of current stun effects.
+
+	local stun = Instance.new("NumberValue") --A new NumberValue instance is created to represent the stun effect.
+	stun.Name = name --The Name of the NumberValue is set to the name parameter passed into the function. This allows for identification of the stun effect by name.
+	stun.Parent = Values.staminaStuns --The stun instance is then parented (added) to Values.staminaStuns, which is likely a container for tracking all active stuns related to stamina.
+	if stunTime then --This code checks if a stunTime is provided (i.e., if stunTime is not nil), the code adds the stun instance to the Debris service. This is done with the Debris:AddItem(stun, stunTime) call.
+		Debris:AddItem(stun, stunTime)
+	end
+end
+
+
+
+function combat.AnimationEvents(player) --
+	local character = player.Character
+
+	local Values = require(character.CombatValues) --The function first retrieves the player’s Character and accesses the CombatValues module (likely a table with various properties related to the player's combat system).
+
+
+	Values.animations.equip:GetMarkerReachedSignal("turnOn"):Connect(function(value) --The function listens for a specific event within the equip animation. This animation contains a marker called "turnOn", which is triggered when the animation reaches that point. It uses the GetMarkerReachedSignal("turnOn"):Connect method to bind a callback function to the marker’s activation.
+		if Values.dualWeaponD then
+			remotes.TurnOnSaber:FireServer(Values.equippedWeaponD, Values.dualWeaponD, Values.bladeLength) --Inside the event callback, the function checks if the player has a dual-wielded weapon (Values.dualWeaponD).
+		else                                                                                                --If the player has a dual weapon, it calls the TurnOnSaber remote event (likely to trigger the weapon's activation or activation effects on the server) and passes the appropriate weapon and blade length information.
+			remotes.TurnOnSaber:FireServer(Values.equippedWeaponD, nil, Values.bladeLength) --If the player does not have a dual weapon, it sends the TurnOnSaber remote event with nil as the second parameter (indicating a single weapon) and also includes the blade length.
+		end
+		Values.equippedWeaponD:FindFirstChild("TurnOn", true):Play() --The function searches for the "TurnOn" and "Hum" sound effects within the weapon (both in the primary weapon and the dual weapon, if applicable). It then plays these sounds to indicate that the weapon has been powered on or activated.
+		Values.equippedWeaponD:FindFirstChild("Hum", true):Play()
+
+		for _, blade in pairs(Values.equippedWeaponD:GetChildren()) do --The function then looks for any parts in the weapon (and in the dual weapon if present) with the name "Blade" (or "Blade_Left" for the secondary weapon).
+			if blade:IsA("BasePart") and blade.Name == "Blade" then
+				TweenService:Create(blade, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Transparency = 0}):Play()
+				TweenService:Create(blade.Weld, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {C0 = blade.Weld.C0 * CFrame.new(0, -Values.bladeLength/2, 0)}):Play()
+				TweenService:Create(blade, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = Vector3.new(blade.Size.X, Values.bladeLength, blade.Size.Z)}):Play()
+				TweenService:Create(blade.Trail0, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = Vector3.new(0, -Values.bladeLength/2, 0)}):Play()
+				TweenService:Create(blade.Trail1, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = Vector3.new(0, Values.bladeLength/2, 0)}):Play()
+			end
+		end
+
+		if Values.dualWeaponD then --If the player is wielding a dual weapon (Values.dualWeaponD), the same series of steps are performed for the second weapon. Specifically, the function animates the left blade ("Blade_Left") with similar effects like transparency, size, trail position, and sound effects.
+			Values.dualWeaponD:FindFirstChild("TurnOn", true):Play()
+			Values.dualWeaponD:FindFirstChild("Hum", true):Play()
+			for _, blade in pairs(Values.dualWeaponD:GetChildren()) do
+				if blade:IsA("BasePart") and blade.Name == "Blade_Left" then
+					TweenService:Create(blade, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Transparency = 0}):Play()
+					TweenService:Create(blade["Weld_Left"], TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {C0 = blade["Weld_Left"].C0 * CFrame.new(0, -Values.bladeLength/2, 0)}):Play()
+					TweenService:Create(blade, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = Vector3.new(blade.Size.X, Values.bladeLength, blade.Size.Z)}):Play()
+					TweenService:Create(blade.Trail0_Left, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = Vector3.new(0, -Values.bladeLength/2, 0)}):Play()
+					TweenService:Create(blade.Trail1_Left, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = Vector3.new(0, Values.bladeLength/2, 0)}):Play()
+				end
+			end
+		end
+	end)
+
+
+	for _, anim in pairs({Values.animations.swingUpRight, Values.animations.swingRight, Values.animations.swingDownRight, Values.animations.swingUpLeft, Values.animations.swingLeft, Values.animations.swingDownLeft,
+		Values.animations.swingUpRightB, Values.animations.swingRightB, Values.animations.swingDownRightB, Values.animations.swingUpLeftB, Values.animations.swingLeftB, Values.animations.swingDownLeftB}) do --The code iterates over a list of swing animations, which include different directions of swings for the weapon. These animations are stored in Values.animations and have names like swingUpRight, swingRight, etc.
+		anim:GetMarkerReachedSignal("swinging"):Connect(function(value) --For each animation in the loop, the code listens for the GetMarkerReachedSignal("swinging") event. This event is triggered when the "swinging" marker is reached during the animation.
+			local event = true
+			if not Values.swingEvents then
+				if not Values.landedHit then
+					event = false
+				end
+			end
+			if event then
+				if value == "true" then
+					remotes.Swing:FireServer(true, nil, true) --This triggers the remote remotes.Swing:FireServer(true, nil, true) to notify the server that the swing has started.
+
+					Values.chambering.Value = 0 --This sets Values.chambering.Value to 0 and uses a tween to reset the chambering animation.
+					TweenService:Create(Values.chambering, TweenInfo.new(0.001, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+					local swingAnimation = Values.animations["swing"..Values.currentSwing]
+					swingAnimation:AdjustSpeed(Values.weaponStats.swingSpeed) --The animation's speed is adjusted based on Values.weaponStats.swingSpeed to match the speed at which the swing should occur.
+
+					Values.swinging = true --Values.swinging is set to true to indicate the player is actively swinging.
+					Values.windingUp = false --Values.windingUp is set to false to show that the wind-up phase has ended.
+					Values.canParry.Value = 1 --Values.canParry.Value is set to 1, meaning the player can parry during this swing.
+
+					for _, hitRay in pairs(Values.equippedWeapon.HandAttach:GetChildren()) do
+						if hitRay.Name == "HitRay" then
+							hitRay:SetAttribute("PreviousPosition", hitRay.WorldPosition) --This code iterates through the weapon's parts and tracks the position of the "HitRay" (likely used for detecting collisions during the swing) by setting an attribute "PreviousPosition" to the hit ray's current world position.
+						end
+					end
+
+				else
+					remotes.Swing:FireServer(false) --THis triggers remotes.Swing:FireServer(false) to notify the server that the swing has completed.
+
+					Values.swinging = false --Values.swinging is set to false to indicate that the swing is no longer active.
+
+					local swingAnimation = Values.animations["swing"..Values.currentSwing] --This determines the speed of the recovery phase after the swing.
+					swingAnimation:AdjustSpeed(Values.weaponStats.recoverySpeed)
+				end
+			end
+		end)
+
+
+		anim:GetMarkerReachedSignal("canParry"):Connect(function(value) --The code also listens for the GetMarkerReachedSignal("canParry") event, which indicates when the player is able to parry during a swing.
+			if Values.swingEvents then
+				Values.canParry.Value = 0 --It sets Values.canParry.Value = 0, meaning the player cannot parry anymore (likely after the parry window has passed).
+				TweenService:Create(Values.turnCap, TweenInfo.new(0.4*Values.weaponStats.recoverySpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 1}):Play() --It starts a tween on Values.turnCap, likely related to turning the player or adjusting the turn speed during the recovery phase.
+				Values.cursorOverride = "None" --Values.cursorOverride is set to "None", disabling a custom cursor or effect related to parrying.
+			end
+			if Values.landedHit then
+				Values.cursorOverride = "None" --It sets Values.cursorOverride = "None", disabling the cursor effect.
+				Values.canSwing.Value = 0 --It sets Values.canSwing.Value = 0, disabling the ability to swing the weapon again immediately.
+				Values.landedHit = false --It sets Values.landedHit = false, indicating the hit has been processed.
+				TweenService:Create(Values.turnCap, TweenInfo.new(0.4*Values.weaponStats.recoverySpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 1}):Play() --A tween is started on Values.turnCap, for turning the player during the recovery phase.
+				for _, stun in pairs(Values.staminaStuns:GetChildren()) do --Any "Swing" stamina stun effects are destroyed (reset the stamina system after a successful hit).
+					if stun.Name == "Swing" then
+						stun:Destroy()
+					end
+				end
+
+			else
+				Values.stamina.Value -= Values.weaponStats.missStamina --This code reduces the player's stamina by the value of missStamina (when the player misses a hit).
+			end
+		end)
+				Values.move.Shift = false --This code sets the player's Shift key to false, disabling the sprint function.
+		end)
+			end
+		end)
+
+
+	anim:GetMarkerReachedSignal("canSwing"):Connect(function(value) --The code also listens for the GetMarkerReachedSignal("canSwing") event, which indicates the point at which the player is ready to swing again.
+			if Values.swingEvents then
+				Values.canSwing.Value = 0 --It sets Values.canSwing.Value = 0, disabling the ability to swing at that moment.
+				for _, stun in pairs(Values.staminaStuns:GetChildren()) do --It iterates through all "Swing" stamina stuns and adds them to the Debris service for automatic cleanup after 3 seconds. It iterates through all "Swing" stamina stuns and adds them to the Debris service for automatic cleanup after 3 seconds.
+					if stun.Name == "Swing" then
+						Debris:AddItem(stun, 3)
+					end
+				end
+			end
+		end)
+	end
+end
+
+
+
+function combat.OnSpawn(player, side) --This function called combat.OnSpawn is used to initialize or configure certain properties of the player's character when they spawn in the game.
+	local character = player.Character
+
+	local Values = require(character.CombatValues)
+
+
+	if side == "client" then
+		local character = player.Character
+		local head = character:WaitForChild("Head")
+
+
+		local cameraPart = game.ReplicatedStorage.CombatAssets.CameraPart:Clone() --A camera part is cloned from game.ReplicatedStorage.CombatAssets.CameraPart and is positioned at the head of the player's character using head.CFrame.
+		cameraPart:SetPrimaryPartCFrame(head.CFrame) 
+		cameraPart.HeadWeld.WeldConstraint.Part1 = head --The camera part is then welded to the head of the character using a WeldConstraint.
+		cameraPart.HeadWeld.Anchored = false --The Anchored property of the weld is set to false, meaning it will move with the character's head.
+		cameraPart.Parent = character --The cloned camera part is parented to the character, meaning it becomes part of the character's model in the game.
+
+
+		Values.waist = character:FindFirstChild("Waist", true) --The function then stores the initial C0 values (the base coordinate offsets) for several key body parts of the player's character. This comment goes for lines 218 through 243.
+		Values.waistC0 = Values.waist.C0
+
+		Values.root = character:FindFirstChild("Root", true)
+		Values.rootC0 = Values.root.C0
+
+		Values.neck = character:FindFirstChild("Neck", true)
+		Values.neckC0 = Values.neck.C0
+
+		Values.rightHip = character:FindFirstChild("RightHip", true)
+		Values.rightHipC0 = Values.rightHip.C0
+
+		Values.leftHip = character:FindFirstChild("LeftHip", true)
+		Values.leftHipC0 = Values.leftHip.C0
+
+		Values.rightKnee = character:FindFirstChild("RightKnee", true)
+		Values.rightKneeC0 = Values.rightKnee.C0
+
+		Values.leftKnee = character:FindFirstChild("LeftKnee", true)
+		Values.leftKneeC0 = Values.leftKnee.C0
+
+		Values.rightShoulder = character:FindFirstChild("RightShoulder", true)
+		Values.rightShoulderC0 = Values.rightShoulder.C0
+
+		Values.leftShoulder = character:FindFirstChild("LeftShoulder", true)
+		Values.leftShoulderC0 = Values.leftShoulder.C0
+
+
+		Values.stamina.Value = 100 --The player's stamina is set to 100, presumably meaning the player starts with full stamina.
+
+		Values.turnCap.Value = 1 --The turn cap value is set to 1, which might be used to limit or control the player's turning speed or mechanics during gameplay.
+
+
+	elseif side == "server" then --The function retrieves the Humanoid object of the character. The Humanoid represents the player's character's health, animations, and other characteristics, but in this part of the code, it's not used further.
+		local character = player.Character
+		local humanoid = character.Humanoid
+	end
+end
+
+
+
+function combat.Equip(player, tool, side, lengthOfBlade)
+	local character = player.Character
+	local animator = character.Humanoid.Animator
+	local humanoid = character.Humanoid
+	local camera = workspace.CurrentCamera
+
+	local Values = require(character.CombatValues)
+	local WeaponInfo = require(tool.Weapon)
+
+
+	if side == "server" then
+		local weapon = WeaponInfo.reference:Clone()
+		weapon.Parent = character
+		
+		local colors = {
+			Color3.fromRGB(161, 178, 255), Color3.fromRGB(158, 218, 255), Color3.fromRGB(193, 157, 255),
+			Color3.fromRGB(244, 161, 255), Color3.fromRGB(255, 156, 191), Color3.fromRGB(255, 156, 158),
+			Color3.fromRGB(255, 177, 158), Color3.fromRGB(255, 219, 158), Color3.fromRGB(255, 252, 158),
+			Color3.fromRGB(229, 255, 156), Color3.fromRGB(208, 255, 157), Color3.fromRGB(162, 255, 157),
+			Color3.fromRGB(152, 255, 169), Color3.fromRGB(148, 255, 202), Color3.fromRGB(156, 255, 243),
+			Color3.fromRGB(255, 255, 255)
+		}
+
+		for _, blade in pairs(weapon:GetChildren()) do
+			if blade:IsA("BasePart") and blade.Name == "Blade" then
+				local bladeColor = colors[math.random(1, #colors)]
+				blade.Color = bladeColor
+			end
+		end
+
+		local WeaponProperties = require(weapon:WaitForChild("WeaponProperties"))
+
+		local weaponGrip = Instance.new("Motor6D", character["RightHand"])
+		weaponGrip.Part0 = character["RightHand"]
+		weaponGrip.Part1 = weapon.HandAttach
+		weaponGrip.Name = "WeaponGrip"
+
+		local dualweapon = nil
+
+		humanoid.AutoRotate = false
+
+		if WeaponProperties.animations == "Dual" then
+			dualweapon = weapon:Clone()
+			for _, blade in pairs(dualweapon:GetChildren()) do
+				if blade:IsA("BasePart") and blade.Name == "Blade" then
+					local bladeColor = colors[math.random(1, #colors)]
+					blade.Color = bladeColor
+				end
+			end
+			dualweapon.Name = dualweapon.Name.."_Left"
+			for _, i in pairs(dualweapon:GetDescendants()) do
+				if i.Name ~= "WeaponProperties" then
+					i.Name = i.Name.."_Left"
+				end
+			end
+			dualweapon.Parent = character
+
+			local dualweaponGrip = Instance.new("Motor6D", character["LeftHand"])
+			dualweaponGrip.Part0 = character["LeftHand"]
+			dualweaponGrip.Part1 = dualweapon["HandAttach_Left"]
+			dualweaponGrip.Name = "DualWeaponGrip"
+		end
+
+		local bladeLength = weapon.Blade.Size.Y
+
+		for _, blade in pairs(weapon:GetChildren()) do
+			if blade:IsA("BasePart") and blade.Name == "Blade" then
+				blade.Transparency = 1
+				blade.Weld.C0 = blade.Weld.C0 * CFrame.new(0, blade.Size.Y/2, 0)
+				blade.Size = Vector3.new(blade.Size.X, 0, blade.Size.Z)
+				blade.Trail0.Position = Vector3.new(0, 0, 0)
+				blade.Trail1.Position = Vector3.new(0, 0, 0)
+				blade.Trail.Color = ColorSequence.new(blade.Color, blade.Color)
+			end
+		end
+
+		if dualweapon then
+			for _, blade in pairs(dualweapon:GetChildren()) do
+				if blade:IsA("BasePart") and blade.Name == "Blade_Left" then
+					blade.Transparency = 1
+					blade["Weld_Left"].C0 = blade["Weld_Left"].C0 * CFrame.new(0, blade.Size.Y/2, 0)
+					blade.Size = Vector3.new(blade.Size.X, 0, blade.Size.Z)
+					blade.Trail0_Left.Position = Vector3.new(0, 0, 0)
+					blade.Trail1_Left.Position = Vector3.new(0, 0, 0)
+					blade.Trail_Left.Color = ColorSequence.new(blade.Color, blade.Color)
+				end
+			end
+		end
+
+		remotes.Equip:FireClient(player, tool, true, bladeLength)
+
+		Values.equippedWeapon = weapon
+		if dualweapon then
+			Values.dualWeapon = dualweapon
+		end
+
+
+	elseif side == "client" then
+		local weapon
+		repeat -- repeat looking for weapon model until it appears on player client
+			for _, child in pairs(character:GetChildren()) do
+				if child.Name == WeaponInfo.reference.Name and child:FindFirstChild("WeaponProperties") and child:FindFirstChild("LightsaberModel") then
+					weapon = child
+				end
+			end
+			wait()
+		until weapon
+
+		local WeaponProperties = require(weapon:WaitForChild("WeaponProperties"))
+
+		local dualWeapon
+		if WeaponProperties.animations == "Dual" then
+			repeat -- repeat looking for weapon model until it appears on player client
+				for _, child in pairs(character:GetChildren()) do
+					if child.Name == WeaponInfo.reference.Name.."_Left" and child:FindFirstChild("WeaponProperties") and child:FindFirstChild("LightsaberModel_Left") then
+						dualWeapon = child
+					end
+				end
+				wait()
+			until dualWeapon
+		end
+
+		for animationName, animation in pairs(CombatSettings.Animations.Lightsabers[WeaponProperties.animations]) do
+			animation.AnimationId = "rbxassetid://"..CombatSettings.AnimationIDs.Lightsabers[WeaponProperties.animations][animationName]
+		end
+
+		for animationName, animation in pairs(CombatSettings.Animations.Lightsabers[WeaponProperties.animations]) do
+			local track = humanoid:LoadAnimation(animation)
+			Values.animations[animationName] = track
+		end
+
+		Values.bladeLength = lengthOfBlade
+
+		Values.equippedWeaponD = weapon
+
+		if dualWeapon then
+			Values.dualWeaponD = dualWeapon
+		end
+
+		combat.AnimationEvents(player, lengthOfBlade)
+
+		UserInputService.MouseIconEnabled = false
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		TweenService:Create(player.PlayerGui.CombatUi.Cursor, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 0.2}):Play()
+
+		Values.animations.equip:Play(0.2, 1, 1)
+		Values.animations.idle:Play(0.4, 1, 1)
+
+		camera.CameraSubject = character.CameraPart.Eyes
+		if (camera.CFrame.Position-character.Head.Position).Magnitude < 2 then
+			Values.firstPerson = true
+		else
+			Values.firstPerson = false
+		end
+
+		TweenService:Create(camera, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = 100}):Play()
+
+		task.wait(1)
+		Values.canEquip = true
+		Values.equippedWeapon = weapon
+		if dualWeapon then
+			Values.dualWeapon = dualWeapon
+		end
+	end
+end
+
+
+
+function combat.Unequip(player, tool, side)
+	local character = player.Character
+	local humanoid = character.Humanoid
+	local WeaponInfo = require(tool.Weapon)
+	local camera = workspace.CurrentCamera
+
+	local Values = require(character.CombatValues)
+
+
+	if side == "server" then
+		Values.equippedWeapon:Destroy()
+		character["RightHand"]:WaitForChild("WeaponGrip"):Destroy()
+		if Values.dualWeapon then
+			Values.dualWeapon:Destroy()
+			character["LeftHand"]:WaitForChild("DualWeaponGrip"):Destroy()
+		end
+
+		remotes.Equip:FireClient(player, tool, false)
+
+		humanoid.AutoRotate = true
+
+
+	elseif side == "client" then
+		Values.equippedWeapon = nil
+		Values.equippedWeaponD = nil
+
+		Values.hasWeaponEquipped = false
+
+		camera.CameraSubject = humanoid
+
+		for _, animation in pairs(Values.animations) do
+			animation:Stop(0.2)
+			animation = nil
+		end
+
+		UserInputService.MouseIconEnabled = true
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		TweenService:Create(player.PlayerGui.CombatUi.Cursor, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 1}):Play()
+
+		player.CameraMaxZoomDistance = 50
+		player.CameraMinZoomDistance = 0.5
+
+		TweenService:Create(camera, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = 70}):Play()
+	end
+end
+
+
+
+function combat.Direction(player)
+	local character = player.Character
+	local combatUi = player.PlayerGui.CombatUi
+	local cursor = combatUi.Cursor
+	local mouse = player:GetMouse()
+
+	local Values = require(character.CombatValues)
+
+
+
+	local mouseDelta = UserInputService:GetMouseDelta()/100
+
+	local overrideRotations = {
+		["UpRight"] = -45, ["Right"] = 0, ["DownRight"] = 45, ["UpLeft"] = 225, ["Left"] = 180, ["DownLeft"] = 135,
+		["UpRightB"] = -45, ["RightB"] = 0, ["DownRightB"] = 45, ["UpLeftB"] = 225, ["LeftB"] = 180, ["DownLeftB"] = 135
+	}
+
+	if Values.cursorOverride ~= "None" then
+		cursor.Rotation = overrideRotations[Values.cursorOverride]
+	end
+
+	if mouseDelta.X < 0 then
+		if Values.cursorOverride == "None" then
+			cursor.Rotation = 180
+		end
+		Values.direction = "Left"
+	elseif mouseDelta.X > 0 then
+		if Values.cursorOverride == "None" then
+			cursor.Rotation = 0
+		end
+		Values.direction = "Right"
+	end
+
+	cursor.Shield.Rotation = cursor.Rotation
+
+	cursor.Position = UDim2.new(mouse.X/combatUi.AbsoluteSize.X, 0, mouse.Y/combatUi.AbsoluteSize.Y, 0)
+end
+
+
+
+function combat.Joints(player, deltaTime)
+	local character = player.Character
+	if character:FindFirstChild("HumanoidRootPart") and  character.LowerTorso:FindFirstChild("Root") then
+		local camera = workspace.CurrentCamera
+		local rootPart = character.HumanoidRootPart
+
+		local mouseDelta = UserInputService:GetMouseDelta()/15
+
+		local Values = require(character.CombatValues)
+
+		local camRot = Vector3.new(camera.CFrame.Rotation:ToEulerAnglesYXZ())
+		camRot = Vector3.new(math.deg(camRot.X), math.deg(camRot.Y), math.deg(camRot.Z))
+		
+		Values.camMovement = camRot - Values.lastCamRot
+		Values.lastCamRot = camRot
+
+		local camMove = Vector2.new(0, 0)
+		
+		if math.abs(Values.camMovement.Y) > Values.turnCap.Value then
+			local over = math.abs(Values.camMovement.Y) - Values.turnCap.Value
+			local direction = 1
+			if Values.camMovement.Y < 0 then
+				direction = -1
+			end
+
+			--camera.CFrame = camera.CFrame * CFrame.Angles(0, math.rad(direction * -over), 0)
+		end
+
+		camera.CFrame = camera.CFrame
+			* CFrame.Angles(0, math.rad(camMove.X), 0)
+			* CFrame.new(Values.camOffset.X, Values.camOffset.Y, Values.camOffset.Z)
+
+
+		if Values.equippedWeaponD then
+			local camX, camY = camera.CFrame.Rotation:ToEulerAnglesYXZ()
+
+			rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, camY, 0)
+
+			local rootVelocity = rootPart.CFrame:VectorToObjectSpace(rootPart.Velocity)/40
+
+			local swayxDistance = 0.4-math.abs(Values.waistSway.X)
+			local swayyDistance = 0.4-math.abs(Values.waistSway.Y)
+
+			local movexDistance = 0.4-math.abs(Values.waistSway.X)
+			local moveyDistance = 0.4-math.abs(Values.waistSway.Y)
+
+			local rootRotationX, rootRotationY, rootRotationZ = character.LowerTorso.Root.Transform.Rotation:ToEulerAnglesYXZ()
+
+			mouseDelta = (mouseDelta)/(1+math.abs(camX*2))
+
+			Values.waistSway += ((Vector2.new(mouseDelta.X*swayxDistance, 0)-Vector2.new(Values.waistSway.X, 0))*0.1*(60*deltaTime))
+			Values.waistSway += ((Vector2.new(0, mouseDelta.Y*swayyDistance)-Vector2.new(0, Values.waistSway.Y))*0.1*(60*deltaTime))
+
+			if Values.crouching then
+				Values.waistMove += ((Vector2.new(rootVelocity.X*swayxDistance*3, 0)-Vector2.new(Values.waistMove.X, 0))*0.09*(60*deltaTime))
+				Values.waistMove += ((Vector2.new(0, rootVelocity.Z*swayyDistance*3)-Vector2.new(0, Values.waistMove.Y))*0.09*(60*deltaTime))
+			else
+				Values.waistMove += ((Vector2.new(rootVelocity.X*swayxDistance, 0)-Vector2.new(Values.waistMove.X, 0))*0.15*(60*deltaTime))
+				Values.waistMove += ((Vector2.new(0, rootVelocity.Z*swayyDistance)-Vector2.new(0, Values.waistMove.Y))*0.15*(60*deltaTime))
+			end
+
+			Values.waist.C0 = Values.waistC0 * CFrame.Angles(Values.waistOffset.Value.Y, Values.waistOffset.Value.X, 0) * CFrame.Angles(camX - Values.waistSway.Y + Values.waistMove.Y, -Values.waistSway.X, -Values.waistMove.X)
+
+			local lastVelocity = Values.weaponVelocity
+			local weaponPos = (Values.equippedWeaponD.HandAttach.Position+(Values.equippedWeaponD.HandAttach.Orientation/20))
+			Values.weaponVelocity = (weaponPos - Values.lastWeaponPos)
+			if (lastVelocity-Values.weaponVelocity).Magnitude > 3 then
+				Values.weaponVelocity = lastVelocity/2
+			end
+			Values.lastWeaponPos = weaponPos
+
+			Values.equippedWeaponD:FindFirstChild("Hum", true).Volume = 0.2+(Values.weaponVelocity.Magnitude)
+			Values.equippedWeaponD:FindFirstChild("Hum", true).PlaybackSpeed = 1+(Values.weaponVelocity.Magnitude/25)
+
+
+			for _, accessory in pairs(character:GetChildren()) do
+				if accessory:IsA("Accessory") then
+					for _, part in pairs(accessory:GetChildren()) do
+						if part:IsA("BasePart") then
+							if (camera.CFrame.Position-character.Head.Position).Magnitude < 2 then
+								part.Transparency = 1
+								character.Head.Transparency = 1
+								for _, decal in pairs(character.Head:GetChildren()) do
+									if decal:IsA("Decal") then
+										decal.Transparency = 1
+									end
+								end
+								Values.camOffset += ((Vector3.new(0, 0, 0)-Values.camOffset)*0.1*(60*deltaTime))
+							else
+								part.Transparency = 0
+								character.Head.Transparency = 0
+								for _, decal in pairs(character.Head:GetChildren()) do
+									if decal:IsA("Decal") then
+										decal.Transparency = 0
+									end
+								end
+								Values.camOffset += ((Vector3.new(0, 1, 0)-Values.camOffset)*0.1*(60*deltaTime))
+							end
+						end
+					end
+				end
+			end
+
+
+		else
+			Values.waist.C0 = Values.waistC0
+
+			Values.camOffset += ((Vector3.new(0, 0, 0)-Values.camOffset)*0.1*(60*deltaTime))
+		end
+	end
+end
+
+
+
+function combat.ReplicatedJoints(player, oPlayer, rootCFrame, waistOrigin, waistRotation, replicateTime)
+	local character = player.Character
+
+	local Values = require(character.CombatValues)
+
+	local oCharacter = oPlayer.Character
+
+	if oCharacter:FindFirstChild("Waist", true) and oCharacter:FindFirstChild("HumanoidRootPart") then
+		local oWaist = oCharacter:FindFirstChild("Waist", true)
+		local oRootPart = oCharacter.HumanoidRootPart
+		
+		replicateTime *= 1.25
+
+		TweenService:Create(oWaist, TweenInfo.new(replicateTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {C0 = waistOrigin * CFrame.Angles(waistRotation.X, waistRotation.Y, waistRotation.Z)}):Play()
+		TweenService:Create(oRootPart, TweenInfo.new(replicateTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {CFrame = rootCFrame}):Play()
+	end
+end
+
+
+
+function combat.Parry(player)
+	local character = player.Character
+	local humanoid = character.Humanoid
+	local camera = workspace.CurrentCamera
+
+	local Values = require(character.CombatValues)
+
+
+	remotes.Swing:FireServer(false, nil, true)
+
+	Values.chambering.Value = 0
+	TweenService:Create(Values.chambering, TweenInfo.new(0.001, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+	remotes.Parry:FireServer()
+
+	Values.animations.parry:Play(0.05, 1, 1)
+
+	combat.StopAllAnims(player, 0.1, {Values.animations.idle, Values.animations.parry})
+
+	combat.StaminaStun(player, 3, "Parry")
+	for _, stun in pairs(Values.staminaStuns:GetChildren()) do
+		if stun.Name == "Swing" then
+			Debris:AddItem(stun, 3)
+		end
+	end
+
+	Values.landedHit = false
+
+	Values.move.Shift = false
+
+	if Values.windingUp then
+		Values.stamina.Value -= Values.weaponStats.missStamina
+		Values.windingUp = false
+	end
+
+	Values.turnCap.Value = Values.weaponStats.turnCap/2
+
+	Values.cursorOverride = "None"
+
+	Values.canParry.Value = 1
+	Values.parrying.Value = 1
+	Values.canSwing.Value = 1
+	TweenService:Create(Values.parrying, TweenInfo.new(0.32, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+	TweenService:Create(Values.canParry, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+	TweenService:Create(Values.canSwing, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+	TweenService:Create(Values.turnCap, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 1}):Play()
+end
+
+
+
+function combat.Swing(player, verticalDirection)
+	local character = player.Character
+	local humanoid = character.Humanoid
+	local camera = workspace.CurrentCamera
+
+	local Values = require(character.CombatValues)
+
+
+	local swing = Values.direction
+	if verticalDirection then
+		swing = verticalDirection..Values.direction
+	end
+	local swingAnim = Values.animations["swing"..swing]
+
+	if swing:match(Values.comboDirection) and Values.lastSwingAnim then
+		if Values.lastSwingAnim.IsPlaying then
+			if Values.comboDirection == "Left" then
+				swing = string.gsub(swing, "Left", "Right")
+			elseif Values.comboDirection == "Right" then
+				swing = string.gsub(swing, "Right", "Left")
+			end
+		end
+	end
+	swingAnim = Values.animations["swing"..swing]
+	Values.lastSwingAnim = swingAnim
+
+	local comDirection = "Right"
+	if swing:match("Left") then
+		comDirection = "Left"
+	end
+	Values.comboDirection = comDirection
+
+	remotes.Windup:FireServer(swing, 0.35*Values.weaponStats.windupSpeed, true)
+
+	Values.currentSwing = swing
+
+	Values.chambering.Value = 0
+	TweenService:Create(Values.chambering, TweenInfo.new((0.35*Values.weaponStats.windupSpeed/1.5), Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 1}):Play()
+
+	swingAnim:Play(0.35*Values.weaponStats.windupSpeed, 1, 0)
+
+	combat.StopAllAnims(player, 0.35*Values.weaponStats.windupSpeed, {Values.animations.idle, swingAnim})
+
+	TweenService:Create(Values.turnCap, TweenInfo.new(0.35*Values.weaponStats.windupSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = Values.weaponStats.turnCap}):Play()
+
+	Values.canSwing.Value = 1
+
+	Values.animations.idle:Play(0.35*Values.weaponStats.windupSpeed, 1, 1)
+
+	Values.cursorOverride = swing
+
+	combat.StaminaStun(player, nil, "Swing")
+
+	remotes.Swing:FireServer(false)
+
+	Values.swingEvents = true
+	Values.windingUp = true
+	Values.swinging = false
+
+	local ready = remotes.SwingDelay:InvokeServer(swingAnim.Animation.AnimationId)
+	swingAnim:AdjustSpeed(Values.weaponStats.windupSpeed)
+
+	table.clear(Values.invulns)
+end
+
+
+
+function combat.Feint(player)
+	local character = player.Character
+
+	local Values = require(character.CombatValues)
+
+
+	remotes.Swing:FireServer(false, nil, true)
+
+	Values.chambering.Value = 0
+	TweenService:Create(Values.chambering, TweenInfo.new(0.001, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+	Values.swingEvents = false
+
+	Values.canParry.Value = 0
+	Values.canSwing.Value = 0
+
+	for _, stun in pairs(Values.staminaStuns:GetChildren()) do
+		if stun.Name == "Swing" then
+			Debris:AddItem(stun, 3)
+		end
+	end
+	Values.stamina.Value -= Values.weaponStats.missStamina
+
+	Values.cursorOverride = "None"
+
+	local swingAnimation = Values.animations["swing"..Values.currentSwing]
+	swingAnimation:AdjustSpeed(Values.weaponStats.windupSpeed/2)
+	swingAnimation:Stop(0.2*Values.weaponStats.windupSpeed)
+
+	Values.feintedSwing = swingAnimation
+	Values.feinted.Value = 1
+	TweenService:Create(Values.feinted, TweenInfo.new(0.2*Values.weaponStats.windupSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+	TweenService:Create(Values.turnCap, TweenInfo.new(0.2*Values.weaponStats.windupSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 1}):Play()
+
+	if Values.queuedInput then
+		Values.queuedInput:Destroy()
+		Values.queuedInput = nil
+	end
+end
+
+
+
+function combat.Parried(player, raycast)
+	local character = player.Character
+
+	local Values = require(character.CombatValues)
+
+
+	Values.canParry.Value = 0
+	Values.canSwing.Value = 0
+	Values.parrying.Value = 0
+	TweenService:Create(Values.parrying, TweenInfo.new(0.02, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+	TweenService:Create(Values.canParry, TweenInfo.new(0.02, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+	TweenService:Create(Values.canSwing, TweenInfo.new(0.02, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+	Values.stamina.Value -= Values.weaponStats.parryStamina
+
+	Values.animations.parry:AdjustWeight(0.001, 0.15)
+
+	Values.equippedWeapon:FindFirstChild("Parry"..tostring(math.random(1, 3)), true):Play()
+end
+
+
+
+function combat.GotParried(player, raycast)
+	local character = player.Character
+
+	local Values = require(character.CombatValues)
+
+
+	remotes.Swing:FireServer(false)
+
+	Values.canParry.Value = 0
+	Values.canSwing.Value = 1
+	Values.swingEvents = false
+	Values.swinging = false
+	TweenService:Create(Values.canSwing, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+	local swingAnimation = Values.animations["swing"..Values.currentSwing]
+	swingAnimation:AdjustSpeed(-Values.weaponStats.swingSpeed/3)
+	swingAnimation:Stop(0.6)
+	Values.animations.idle:Play(0.6, 1, 1)
+end
+
+
+
+function combat.GotHit(player, otherPlayer)
+	local character = player.Character
+
+	local Values = require(character.CombatValues)
+
+
+	remotes.Swing:FireServer(false, nil, true)
+
+	Values.chambering.Value = 0
+	TweenService:Create(Values.chambering, TweenInfo.new(0.001, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+	table.insert(Values.parryInvulns, otherPlayer)
+	print(otherPlayer)
+
+	Values.canParry.Value = 0
+	Values.canSwing.Value = 1
+	Values.swingEvents = false
+	Values.swinging = false
+	TweenService:Create(Values.canParry, TweenInfo.new(0.05, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+	TweenService:Create(Values.canSwing, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+	Values.move.Shift = false
+	Values.speedMult = 0.3
+
+	Values.animations.idle:Play(0.3, 1, 1)
+	combat.StopAllAnims(player, 0.3, {Values.animations.idle})
+end
+
+
+
+function combat.HitDetection(player)
+	local character = player.Character
+
+	local Values = require(character.CombatValues)
+
+
+	for _, hitRay in pairs(Values.equippedWeapon.HandAttach:GetChildren()) do
+		if hitRay.Name == "HitRay" then
+			local origin = hitRay:GetAttribute("PreviousPosition")
+			local direction = hitRay.WorldPosition - origin
+			local params = RaycastParams.new()
+			params.FilterDescendantsInstances = {character}
+			params.IgnoreWater = true
+
+			local raycast = workspace:Raycast(origin, direction, params)
+
+			local distance = (origin-hitRay.WorldPosition).Magnitude
+
+			--[[local rayColor = Color3.fromRGB(255, 213, 108)
+			if hitRay:GetAttribute("DamageType") == "Blunt" then
+				rayColor = Color3.fromRGB(255, 112, 112)
+			end
+			local part = Instance.new("Part", workspace)
+			part.Anchored = true part.CanCollide = false part.CanQuery = false part.CanTouch = false
+			part.Color = rayColor part.Material = "Neon" part.Transparency = 0.8
+			part.Size = Vector3.new(0.01, 0.01, distance)
+			part.CFrame = CFrame.lookAt(origin, origin+direction) * CFrame.new(0, 0, -distance/2)
+			Debris:AddItem(part, 0.1)]]
+
+			hitRay:SetAttribute("PreviousPosition", hitRay.WorldPosition)
+
+
+			if raycast then
+				if raycast.Instance.Parent:FindFirstChild("Humanoid") then
+					if not table.find(Values.invulns, raycast.Instance.Parent) and raycast.Instance.Name ~= "HumanoidRootPart" and not raycast.Instance.Name:match("Arm") and not raycast.Instance.Name:match("Hand") then
+						table.insert(Values.invulns, raycast.Instance.Parent)
+
+						Values.landedHit = true
+						Values.canParry.Value = 0
+						Values.swingEvents = false
+
+						local raycastToPass = {Position = raycast.Position, Normal = raycast.Normal}
+
+
+						if game.Players:GetPlayerFromCharacter(raycast.Instance.Parent) then
+							local oCharacter = raycast.Instance.Parent
+
+							if oCharacter:FindFirstChild("CombatValues") then
+								local oValues = require(oCharacter.CombatValues)
+
+								local parried = false
+
+								if oValues.parrying.Value > 0 then
+									local rootPart = oCharacter.HumanoidRootPart
+									local target = character.HumanoidRootPart
+									local toTarget = (target.Position - rootPart.Position).Unit
+									local inFront = toTarget:Dot(rootPart.CFrame.LookVector)
+									if inFront > -0.1 then
+										--parried = true
+									end
+								end
+
+								--[[if oValues.chambering.Value == 1 then
+									local rootPart = oCharacter.HumanoidRootPart
+									local target = character.HumanoidRootPart
+									local toTarget = (target.Position - rootPart.Position).Unit
+									local inFront = toTarget:Dot(rootPart.CFrame.LookVector)
+									if inFront > -0.1 then
+										parried = true
+									end
+								end]]
+
+
+								if parried then
+									if Values.swinging then
+										if table.find(Values.invulns, raycast.Instance.Parent) then
+											print("hit block, invuln")
+										end
+										combat.GotParried(player)
+										local oWeapon = oCharacter:FindFirstChild("LightsaberModel", true).Parent
+										remotes.Parried:FireServer(oCharacter, raycastToPass, Values.equippedWeapon, Values.equippedWeapon.Blade.Color, oWeapon.Blade.Color, (raycast.Position+oCharacter.UpperTorso.Position)/2, Values.equippedWeapon:FindFirstChild("Parry"..tostring(math.random(1, 3)), true))
+
+										local oWeapon = oCharacter:FindFirstChild("LightsaberModel", true).Parent
+										local sparks = game.ReplicatedStorage.CombatAssets.Sparks:Clone()
+										sparks.Position = (raycast.Position+oCharacter.UpperTorso.Position)/2
+										sparks.Parent = workspace
+										local mixedColor = Color3.new((Values.equippedWeapon.Blade.Color.R+oWeapon.Blade.Color.R)/2, (Values.equippedWeapon.Blade.Color.G+oWeapon.Blade.Color.G)/2, (Values.equippedWeapon.Blade.Color.B+oWeapon.Blade.Color.B)/2)
+										sparks.Flash.Color = ColorSequence.new(mixedColor, mixedColor)
+										sparks.SparkA.Color = ColorSequence.new(Values.equippedWeapon.Blade.Color, Values.equippedWeapon.Blade.Color)
+										sparks.SparkB.Color = ColorSequence.new(oWeapon.Blade.Color, oWeapon.Blade.Color)
+										sparks.Flash:Emit(8)
+										sparks.SparkA:Emit(4)
+										sparks.SparkB:Emit(4)
+										game:GetService("Debris"):AddItem(sparks, 1)
+									end
+
+
+								else
+									remotes.Hit:FireServer(raycast.Instance.Parent, raycastToPass, true, Values.weaponStats.damage)
+								end
+
+
+							else
+								remotes.Hit:FireServer(raycast.Instance.Parent, raycastToPass, false, Values.weaponStats.damage)
+							end
+
+
+						else
+							remotes.Hit:FireServer(raycast.Instance.Parent, raycastToPass, false, Values.weaponStats.damage)
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+
+
+function combat.ParryDetection(player)
+	local character = player.Character
+
+	local Values = require(character.CombatValues)
+
+
+	for _, oPlayer in pairs(game.Players:GetChildren()) do
+		if oPlayer ~= player and oPlayer.Character then
+			if oPlayer.Character:FindFirstChild("HumanoidRootPart") and oPlayer.Character:FindFirstChild("CombatValues") then
+				local oCharacter = oPlayer.Character
+				local oValues = require(oCharacter.CombatValues)
+
+				if oCharacter:FindFirstChild("HandAttach", true) and oCharacter:FindFirstChild("LightsaberModel", true) then
+					local oWeapon = oCharacter:FindFirstChild("LightsaberModel", true).Parent
+					for _, hitRay in pairs(oWeapon.HandAttach:GetChildren()) do
+						if hitRay.Name == "HitRay" then
+							local origin = hitRay:GetAttribute("PreviousPosition")
+							local direction = hitRay.WorldPosition - origin
+							local params = RaycastParams.new()
+							params.FilterDescendantsInstances = {character}
+							params.FilterType = Enum.RaycastFilterType.Include
+							params.IgnoreWater = true
+
+							local raycast = workspace:Raycast(origin, direction, params)
+
+							local distance = (origin-hitRay.WorldPosition).Magnitude
+
+							--[[local rayColor = Color3.fromRGB(255, 213, 108)
+							if hitRay:GetAttribute("DamageType") == "Blunt" then
+								rayColor = Color3.fromRGB(255, 112, 112)
+							end
+							local part = Instance.new("Part", workspace)
+							part.Anchored = true part.CanCollide = false part.CanQuery = false part.CanTouch = false
+							part.Color = rayColor part.Material = "Neon" part.Transparency = 0.8
+							part.Size = Vector3.new(0.01, 0.01, distance)
+							part.CFrame = CFrame.lookAt(origin, origin+direction) * CFrame.new(0, 0, -distance/2)
+							Debris:AddItem(part, 0.1)]]
+
+							hitRay:SetAttribute("PreviousPosition", hitRay.WorldPosition)
+
+
+							if raycast then
+								local raycastToPass = {Position = raycast.Position, Normal = raycast.Normal}
+
+								local invuln = false
+								for _, oPlayer in pairs(Values.parryInvulns) do
+									if oPlayer == game.Players:GetPlayerFromCharacter(oCharacter) then
+										invuln = true
+									end
+								end
+
+								if oValues.swinging and not invuln then
+									local rootPart = character.HumanoidRootPart
+									local target = oCharacter.HumanoidRootPart
+									local toTarget = (target.Position - rootPart.Position).Unit
+									local inFront = toTarget:Dot(rootPart.CFrame.LookVector)
+									if inFront > -0.1 then
+										if Values.parrying.Value > 0 then
+											remotes.Swing:FireServer(false, game.Players:GetPlayerFromCharacter(oCharacter))
+											oValues.swinging = false
+											oValues.gotParried.Value = 1
+											TweenService:Create(oValues.gotParried, TweenInfo.new(6, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+											for _, op in pairs(Values.parryInvulns) do
+												print(op)
+											end
+
+											combat.Parried(player)
+
+											remotes.ParriedOther:FireServer(oCharacter, raycastToPass, Values.equippedWeapon.Blade.Color, oWeapon.Blade.Color, (raycast.Position+oCharacter.UpperTorso.Position)/2, Values.equippedWeapon:FindFirstChild("Parry"..tostring(math.random(1, 3)), true))
+
+											local sparks = game.ReplicatedStorage.CombatAssets.Sparks:Clone()
+											sparks.Position = (raycast.Position+oCharacter.UpperTorso.Position)/2
+											sparks.Parent = workspace
+											local mixedColor = Color3.new((Values.equippedWeapon.Blade.Color.R+oWeapon.Blade.Color.R)/2, (Values.equippedWeapon.Blade.Color.G+oWeapon.Blade.Color.G)/2, (Values.equippedWeapon.Blade.Color.B+oWeapon.Blade.Color.B)/2)
+											sparks.Flash.Color = ColorSequence.new(mixedColor, mixedColor)
+											sparks.SparkA.Color = ColorSequence.new(Values.equippedWeapon.Blade.Color, Values.equippedWeapon.Blade.Color)
+											sparks.SparkB.Color = ColorSequence.new(oWeapon.Blade.Color, oWeapon.Blade.Color)
+											sparks.Flash:Emit(8)
+											sparks.SparkA:Emit(4)
+											sparks.SparkB:Emit(4)
+											game:GetService("Debris"):AddItem(sparks, 1)
+
+
+										elseif Values.chambering.Value == 1 then
+											local swing = Values.currentSwing
+											local otherSwing = oValues.currentSwing
+
+											if swing:match("B") then
+												swing = string.gsub(swing, "B", "")
+											end
+											if otherSwing:match("B") then
+												otherSwing = string.gsub(otherSwing, "B", "")
+											end
+
+											local chambered = false
+
+											if swing == "UpRight" and otherSwing == "UpLeft" then
+												chambered = true
+											elseif swing == "UpLeft" and otherSwing == "UpRight" then
+												chambered = true
+											elseif swing == "Right" and otherSwing == "Left" then
+												chambered = true
+											elseif swing == "Left" and otherSwing == "Right" then
+												chambered = true
+											elseif swing == "DownRight" and otherSwing == "DownLeft" then
+												chambered = true
+											elseif swing == "DownLeft" and otherSwing == "DownRight" then
+												chambered = true
+											end
+
+											if chambered then
+												remotes.Swing:FireServer(false, game.Players:GetPlayerFromCharacter(oCharacter))
+												oValues.swinging = false
+												oValues.gotParried.Value = 1
+												TweenService:Create(oValues.gotParried, TweenInfo.new(6, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Value = 0}):Play()
+
+												remotes.ParriedOther:FireServer(oCharacter, raycastToPass, Values.equippedWeapon.Blade.Color, oWeapon.Blade.Color, (raycast.Position+oCharacter.UpperTorso.Position)/2, Values.equippedWeapon:FindFirstChild("Parry"..tostring(math.random(1, 3)), true))
+
+												Values.equippedWeapon:FindFirstChild("Parry"..tostring(math.random(1, 3)), true):Play()
+
+												local sparks = game.ReplicatedStorage.CombatAssets.Sparks:Clone()
+												sparks.Position = (raycast.Position+oCharacter.UpperTorso.Position)/2
+												sparks.Parent = workspace
+												local mixedColor = Color3.new((Values.equippedWeapon.Blade.Color.R+oWeapon.Blade.Color.R)/2, (Values.equippedWeapon.Blade.Color.G+oWeapon.Blade.Color.G)/2, (Values.equippedWeapon.Blade.Color.B+oWeapon.Blade.Color.B)/2)
+												sparks.Flash.Color = ColorSequence.new(mixedColor, mixedColor)
+												sparks.SparkA.Color = ColorSequence.new(Values.equippedWeapon.Blade.Color, Values.equippedWeapon.Blade.Color)
+												sparks.SparkB.Color = ColorSequence.new(oWeapon.Blade.Color, oWeapon.Blade.Color)
+												sparks.Flash:Emit(8)
+												sparks.SparkA:Emit(4)
+												sparks.SparkB:Emit(4)
+												game:GetService("Debris"):AddItem(sparks, 1)
+											end
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+
+
+function combat.Movement(player, deltaTime)
+	local character = player.Character
+	local humanoid = character.Humanoid
+
+	local Values = require(character.CombatValues)
+
+
+	if Values.move.W then
+		if Values.move.S then
+			if Values.move.A then
+				if Values.move.D then
+					Values.moveDirection = "None"
+				else
+					Values.moveDirection = "Left"
+				end
+			elseif Values.move.D then
+				if Values.move.A then
+					Values.moveDirection = "None"
+				else
+					Values.moveDirection = "Right"
+				end
+			else
+				Values.moveDirection = "None"
+			end
+		else
+			if Values.move.A then
+				if Values.move.D then
+					Values.moveDirection = "Forward"
+				else
+					Values.moveDirection = "ForwardLeft"
+				end
+			elseif Values.move.D then
+				if Values.move.A then
+					Values.moveDirection = "Forward"
+				else
+					Values.moveDirection = "ForwardRight"
+				end
+			else
+				Values.moveDirection = "Forward"
+			end
+		end
+
+	elseif Values.move.S then
+		if Values.move.W then
+			if Values.move.A then
+				if Values.move.D then
+					Values.moveDirection = "None"
+				else
+					Values.moveDirection = "Left"
+				end
+			elseif Values.move.D then
+				if Values.move.A then
+					Values.moveDirection = "None"
+				else
+					Values.moveDirection = "Right"
+				end
+			else
+				Values.moveDirection = "None"
+			end
+		else
+			if Values.move.A then
+				if Values.move.D then
+					Values.moveDirection = "Backward"
+				else
+					Values.moveDirection = "BackwardLeft"
+				end
+			elseif Values.move.D then
+				if Values.move.A then
+					Values.moveDirection = "Backward"
+				else
+					Values.moveDirection = "BackwardRight"
+				end
+			else
+				Values.moveDirection = "Backward"
+			end
+		end
+
+	else
+		if Values.move.A then
+			if Values.move.D then
+				Values.moveDirection = "None"
+			else
+				Values.moveDirection = "Left"
+			end
+		elseif Values.move.D then
+			if Values.move.A then
+				Values.moveDirection = "None"
+			else
+				Values.moveDirection = "Right"
+			end
+		else
+			Values.moveDirection = "None"
+		end
+	end
+
+
+
+	if Values.moveSpeeds[Values.moveDirection] then
+		local targetSpeed = Values.moveSpeeds[Values.moveDirection]*Values.speedMult
+		local speedDirection = (targetSpeed-humanoid.WalkSpeed)
+		if speedDirection < 0 then
+			speedDirection = -1
+		elseif speedDirection > 0 then
+			speedDirection = 1
+		else
+			speedDirection = 0
+		end
+		if humanoid.WalkSpeed < math.abs(targetSpeed) and speedDirection ~= 0 then
+			humanoid.WalkSpeed += (speedDirection*Values.walkAcceleration)*(60*deltaTime)
+		else
+			humanoid.WalkSpeed = targetSpeed
+		end
+	end
+
+
+	if Values.move.W and Values.move.Shift and Values.canRun.Value == 0 and Values.stamina.Value > 0 and not Values.crouching then
+		if Values.speedMult < 1.2 then
+			Values.speedMult += (Values.runBurstAcceleration*(60*deltaTime))
+		else
+			if Values.speedMult < 1.4 then
+				Values.speedMult += (Values.runAcceleration*(60*deltaTime))
+			else
+				Values.speedMult = 1.5
+			end
+		end
+
+	elseif Values.stamina.Value <= 0 or Values.crouching then
+		if Values.speedMult > 0.65 then
+			Values.speedMult -= ((Values.runBurstAcceleration*2)*(60*deltaTime))
+		else
+			Values.speedMult = 0.65
+		end
+
+	else
+		if Values.speedMult > 1 then
+			Values.speedMult -= ((Values.runBurstAcceleration*2)*(60*deltaTime))
+		else
+			Values.speedMult = 1
+		end
+	end
+end
+
+
+
+function combat.Stamina(player, deltaTime)
+	local character = player.Character
+	local humanoid = character.Humanoid
+
+	local Values = require(character.CombatValues)
+
+
+	local running = false
+
+	if Values.move.W and Values.move.Shift and Values.canRun.Value == 0 then
+		running = true
+	end
+
+	if #Values.staminaStuns:GetChildren() == 0 and not running then
+		Values.stamina.Value += 0.15*(60*deltaTime)
+	end
+
+
+	if Values.stamina.Value < 0 then
+		Values.stamina.Value = 0
+	end
+
+	if Values.stamina.Value > 100 then
+		Values.stamina.Value = 100
+	end
+
+
+	if Values.blurPulse == 360 then
+		Values.blurPulse = 0
+
+	end
+	Values.blurPulse += 0.08*(60*deltaTime)
+
+
+	if Values.stamina.Value == 0 then
+		Values.blurIntensity += ((3-Values.blurIntensity)*0.04*(60*deltaTime))
+
+		--slow
+
+		if not Values.noStamina then
+			local staminaStun = Instance.new("BoolValue", Values.staminaStuns)
+			staminaStun.Name = "NoStamStun"
+			Debris:AddItem(staminaStun, 3)
+
+			Values.noStamina = true
+		end
+
+	else
+		Values.blurIntensity += ((0-Values.blurIntensity)*0.03*(60*deltaTime))
+
+		if Values.noStamina then
+			-- normal speed
+			Values.noStamina = false
+		end
+	end
+
+
+	game.Lighting.Blur.Size = (2+math.sin(Values.blurPulse))*Values.blurIntensity
+end
+
+
+
+function combat.Crouch(player, crouching)
+	local character = player.Character
+	local humanoid = character.Humanoid
+
+	local Values = require(character.CombatValues)
+
+	local crouchTime = 0.4
+	local crouchEase = Enum.EasingStyle.Quad
+	local crouchDirection = Enum.EasingDirection.Out
+
+
+	if crouching then
+		if not Values.crouching then
+			remotes.Crouch:FireServer(true)
+			
+			TweenService:Create(Values.root, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rootC0 * CFrame.new(0, -0.9, 0) * CFrame.Angles(-0.3, 0, 0)}):Play()
+
+			TweenService:Create(Values.rightHip, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightHipC0 *  CFrame.Angles(math.rad(80), 0, 0)}):Play()
+			TweenService:Create(Values.rightKnee, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightKneeC0 *  CFrame.Angles(math.rad(-95), 0, 0)}):Play()
+
+			TweenService:Create(Values.leftHip, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftHipC0 *  CFrame.Angles(math.rad(80), 0, 0)}):Play()
+			TweenService:Create(Values.leftKnee, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftKneeC0 *  CFrame.Angles(math.rad(-95), 0, 0)}):Play()
+
+			TweenService:Create(Values.rightShoulder, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightShoulderC0 *  CFrame.Angles(0.3, 0, 0)}):Play()
+			TweenService:Create(Values.leftShoulder, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftShoulderC0 *  CFrame.Angles(0.3, 0, 0)}):Play()
+			TweenService:Create(Values.neck, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.neckC0 *  CFrame.Angles(0.3, 0, 0)}):Play()
+
+			Values.crouching = true
+		end
+
+
+	else
+		if Values.crouching then
+			remotes.Crouch:FireServer(false)
+			
+			TweenService:Create(Values.root, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rootC0}):Play()
+
+			TweenService:Create(Values.rightHip, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightHipC0}):Play()
+			TweenService:Create(Values.rightKnee, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightKneeC0}):Play()
+
+			TweenService:Create(Values.leftHip, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftHipC0}):Play()
+			TweenService:Create(Values.leftKnee, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftKneeC0}):Play()
+
+			TweenService:Create(Values.rightShoulder, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightShoulderC0}):Play()
+			TweenService:Create(Values.leftShoulder, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftShoulderC0}):Play()
+			TweenService:Create(Values.neck, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.neckC0}):Play()
+
+			Values.crouching = false
+		end
+	end
+end
+
+
+
+function combat.CrouchReplicate(player, crouching)
+	local character = player.Character
+	local humanoid = character.Humanoid
+
+	local Values = require(character.CombatValues)
+
+	local crouchTime = 0.4
+	local crouchEase = Enum.EasingStyle.Quad
+	local crouchDirection = Enum.EasingDirection.Out
+
+	
+	if not Values.root then
+		local joints = remotes.Request:InvokeServer(player, "joints")
+		Values.waist = joints[1]
+		Values.waistC0 = joints[2]
+		Values.root = joints[3]
+		Values.rootC0 = joints[4]
+		Values.neck = joints[5]
+		Values.neckC0 = joints[6]
+		Values.rightHip = joints[7]
+		Values.rightHipC0 = joints[8]
+		Values.leftHip = joints[9]
+		Values.leftHipC0 = joints[10]
+		Values.rightKnee = joints[11]
+		Values.rightKneeC0 = joints[12]
+		Values.leftKnee = joints[13]
+		Values.leftKneeC0 = joints[14]
+		Values.rightShoulder = joints[15]
+		Values.rightShoulderC0 = joints[16]
+		Values.leftShoulder = joints[17]
+		Values.leftShoulderC0 = joints[18]
+	end
+
+
+	if crouching then
+		TweenService:Create(Values.root, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rootC0 * CFrame.new(0, -1, 0) * CFrame.Angles(-0.3, 0, 0)}):Play()
+
+		TweenService:Create(Values.rightHip, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightHipC0 *  CFrame.Angles(math.rad(80), 0, 0)}):Play()
+		TweenService:Create(Values.rightKnee, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightKneeC0 *  CFrame.Angles(math.rad(-110), 0, 0)}):Play()
+
+		TweenService:Create(Values.leftHip, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftHipC0 *  CFrame.Angles(math.rad(80), 0, 0)}):Play()
+		TweenService:Create(Values.leftKnee, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftKneeC0 *  CFrame.Angles(math.rad(-110), 0, 0)}):Play()
+
+		TweenService:Create(Values.rightShoulder, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightShoulderC0 *  CFrame.Angles(0.3, 0, 0)}):Play()
+		TweenService:Create(Values.leftShoulder, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftShoulderC0 *  CFrame.Angles(0.3, 0, 0)}):Play()
+		TweenService:Create(Values.neck, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.neckC0 *  CFrame.Angles(0.3, 0, 0)}):Play()
+
+		Values.crouching = true
+
+
+	else
+		TweenService:Create(Values.root, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rootC0}):Play()
+
+		TweenService:Create(Values.rightHip, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightHipC0}):Play()
+		TweenService:Create(Values.rightKnee, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightKneeC0}):Play()
+
+		TweenService:Create(Values.leftHip, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftHipC0}):Play()
+		TweenService:Create(Values.leftKnee, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftKneeC0}):Play()
+
+		TweenService:Create(Values.rightShoulder, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.rightShoulderC0}):Play()
+		TweenService:Create(Values.leftShoulder, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.leftShoulderC0}):Play()
+		TweenService:Create(Values.neck, TweenInfo.new(crouchTime, crouchEase, crouchDirection), {C0 = Values.neckC0}):Play()
+
+		Values.crouching = false
+	end
+end
+
+
+
+return combat
