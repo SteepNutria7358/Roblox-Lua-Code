@@ -33,7 +33,7 @@ function module.new():GuiAnimation --Creates and returns a new instance of an an
 	animation.Ended={ --Creates an Ended event within the animation object.
 		ConnectedFunctions={}
 	}
-	function animation.Ended:Connect(func)
+	function animation.Ended:Connect(func) --This method is used to subscribe a function (func) to the Ended event.
 		table.insert(self.ConnectedFunctions,func)
 		return {
 			Disconnect=function()
