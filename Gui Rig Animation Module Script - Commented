@@ -49,13 +49,13 @@ function module.new():GuiAnimation --Creates and returns a new instance of an an
 	setmetatable(animation,module) --This allows the animation table to use or inherit functions and properties from the module.
 	return animation --This returns the animation object (the table) from the function.
 end
-function module.CreateKeyFrame(Transform:UDim2,TransformAngle:number,EasingStyle:Enum.EasingStyle?,EasingDirection:Enum.EasingDirection?) --Creates a keyframe for an animation, encapsulating an object's position, size, rotation, and easing behavior at a specific point in time.
+function module.CreateKeyFrame(Transform:UDim2,TransformAngle:number,EasingStyle:Enum.EasingStyle?,EasingDirection:Enum.EasingDirection?) --This creates a keyframe for an animation, encapsulating an object's position, size, rotation, and easing behavior at a specific point in time.
 
 	local keyframe = {
 		Name="KeyFrame", --The name of the keyframe.
-		Transform=Transform or UDim2.new(), --Defaults to UDim2.new().
-		TransformAngle=TransformAngle or 0, --Defaults to 0, meaning no rotation.
-		EasingStyle=EasingStyle or Enum.EasingStyle.Linear , --Defaults to Enum.EasingStyle.Linear, so the animation progresses at a constant speed.
+		Transform=Transform or UDim2.new(), --This defaults to UDim2.new().
+		TransformAngle=TransformAngle or 0, --This defaults to 0, meaning no rotation.
+		EasingStyle=EasingStyle or Enum.EasingStyle.Linear , --This defaults to Enum.EasingStyle.Linear, so the animation progresses at a constant speed.
 		EasingDirection=EasingDirection or Enum.EasingDirection.In --If no EasingDirection is provided, this defaults to In.
 	}
 	return keyframe
@@ -63,13 +63,13 @@ end
 function module.Export(self:GuiAnimation,name:string,parent:Instance) --Creates an Animation folder to hold animation data.
 	local animationFolder = Instance.new("Animation",parent) --A new Animation instance is created and parented to the parent instance.
 	if name then animationFolder.Name = name end
-	animationFolder:SetAttribute("FPS",self.FPS) --Frames per second (from the GuiAnimation object).
+	animationFolder:SetAttribute("FPS",self.FPS) --The frames per second (from the GuiAnimation object).
 	animationFolder:SetAttribute("TotalFrames",self.TotalFrames) --The total number of frames in the animation.
 	animationFolder:SetAttribute("Loops",self.Loops) --Whether the animation should loop (Boolean).
-	for limb,keyFrames in pairs(self.KeyFrames) do --Tterates through each limb in the animation (self.KeyFrames).
+	for limb,keyFrames in pairs(self.KeyFrames) do --This iterates through each limb in the animation (self.KeyFrames).
 		local jointFolder = Instance.new("Folder",animationFolder) --A new Folder is created and named after the limb and this folder is parented to the animationFolder.
 		jointFolder.Name = limb 
-		for frameNum,keyFrame:KeyFrame in pairs(keyFrames) do --Iterates through each keyFrame of the limb.
+		for frameNum,keyFrame:KeyFrame in pairs(keyFrames) do --This iterates through each keyFrame of the limb.
 			local frameInstance = Instance.new("IntValue",jointFolder) --
 			frameInstance.Name=keyFrame.Name --The frameNum is used as the Value for the IntValue instance.
 			frameInstance.Value=tonumber(frameNum) --
@@ -181,36 +181,36 @@ end
 function module.UpdateCurrentKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame}) --This function updates the keyframe at the current frame of the animation.
 	self:UpdateKeyFrame(data, self:GetCurrentFrameNum()) --It then calls self:UpdateKeyFrame() with the data.
 end
-function module.GetTransformAtTime(self:GuiAnimation,limb,Time) 
-	if not self.KeyFrames[limb] then return end 
-	local frameNum,frameTime = self:RoundTimeToFrame(Time) 
-	if tonumber(frameNum) == tonumber(frameTime) then 
-		local keyFrame = self.KeyFrames[limb][frameNum] 
-		if keyFrame then return keyFrame end 
+function module.GetTransformAtTime(self:GuiAnimation,limb,Time) --The function calculates the position (Transform) and rotation (TransformAngle) of a specified limb at a given time.
+	if not self.KeyFrames[limb] then return end --This checks if the limb has keyframes.
+	local frameNum,frameTime = self:RoundTimeToFrame(Time) --This rounds the time to the nearest frame.
+	if tonumber(frameNum) == tonumber(frameTime) then --This checks if the current frame number matches the frame time.
+		local keyFrame = self.KeyFrames[limb][frameNum] --This retrieves the keyframe for the limb at the current frame.
+		if keyFrame then return keyFrame end --This returns the keyframe if it exists.
 	end
-	local prevFrame,prevFrameNum = self:GetPrevTimeStamp(limb,frameTime) 
-	local nextFrame,nextFrameNum=self:GetNextTimeStamp(limb,frameTime)
-	if prevFrame and nextFrame then 
-		local alpha = tweenService:GetValue((frameTime-prevFrameNum)/(nextFrameNum-prevFrameNum), 
-			prevFrame.EasingStyle or Enum.EasingStyle.Linear , 
-			prevFrame.EasingDirection or Enum.EasingDirection.In
+	local prevFrame,prevFrameNum = self:GetPrevTimeStamp(limb,frameTime) --These get previous and next keyframes around the current time. (Lines: 191 and 192)
+	local nextFrame,nextFrameNum=self:GetNextTimeStamp(limb,frameTime) 
+	if prevFrame and nextFrame then --
+		local alpha = tweenService:GetValue((frameTime-prevFrameNum)/(nextFrameNum-prevFrameNum), --This normalized the time between frames.
+			prevFrame.EasingStyle or Enum.EasingStyle.Linear , --This is the easing style for smooth transitions.
+			prevFrame.EasingDirection or Enum.EasingDirection.In --This is the sasing direction for smooth transitions.
 		)
-		return {
-			Transform = prevFrame.Transform:Lerp(nextFrame.Transform,alpha), 
-			TransformAngle =prevFrame.TransformAngle+(nextFrame.TransformAngle-prevFrame.TransformAngle)*alpha  
+		return { --This code returns an interpolated transform and transform angle. (Lines 198, 199, and 200)
+			Transform = prevFrame.Transform:Lerp(nextFrame.Transform,alpha),
+			TransformAngle =prevFrame.TransformAngle+(nextFrame.TransformAngle-prevFrame.TransformAngle)*alpha
 		}
 	elseif prevFrame then
-		return {
+		return { --If there's only a previous frame, this code returns its transform and angle. (Lines 203, 204, and 205)
 			Transform = prevFrame.Transform,
 			TransformAngle =prevFrame.TransformAngle
 		}
 	elseif nextFrame then
-		return {
+		return { -- If there are no keyframes, this code returns a default transform and angle (origin). (Lines 208, 209, and 210)
 			Transform = nextFrame.Transform,
 			TransformAngle =nextFrame.TransformAngle 
 		}
 	else
-		return {
+		return { --This returns a default position represented by UDim2, where both the X and Y positions are set to 0 (origin). (Lines 213, 214, and 215)
 			Transform = UDim2.fromOffset(0,0), 
 			TransformAngle =0 
 		}
@@ -294,3 +294,4 @@ export type GuiAnimation=typeof(module.new())
 
 
 return module
+
