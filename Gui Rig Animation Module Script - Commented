@@ -104,105 +104,105 @@ function CreateTimeLine() --A function that creates a TimeLine object.
 	local KeyFrames:{[string]:TimeStamps}={} --The keys are strings. The values are TimeStamps.
 	return KeyFrames --The function then returns this empty KeyFrames table.
 end
-function module.RoundTimeToFrame(self:GuiAnimation, Time)
-	return math.round(Time*self.FPS)+1,Time*self.FPS+1
+function module.RoundTimeToFrame(self:GuiAnimation, Time) --The RoundTimeToFrame function converts a given time (in seconds) into two frame-related values.
+	return math.round(Time*self.FPS)+1,Time*self.FPS+1 --The first value returned represents the rounded frame number corresponding to the given Time. The second value returned represents the exact frame number (without rounding) corresponding to the given Time.
 end
-function module.FrameToTime(self:GuiAnimation, FrameNum)
-	return (FrameNum-1)/self.FPS
+function module.FrameToTime(self:GuiAnimation, FrameNum) --This function is a method that operates on a GuiAnimation object
+	return (FrameNum-1)/self.FPS --The frame number is adjusted by subtracting 1. The adjusted frame number is divided by the frames per second (FPS) of the animation.
 end
-function module.GetFrame(self:GuiAnimation,Time)
-	local frame={}
-	for limb,timeStamps in pairs(self.KeyFrames) do
+function module.GetFrame(self:GuiAnimation,Time) --Provides a snapshot of the animation's state at a specific time.
+	local frame={} --An empty table called frame is created.
+	for limb,timeStamps in pairs(self.KeyFrames) do --The function then iterates over all the limbs in the KeyFrames.
 
-		frame[limb]=self:GetTransformAtTime(limb,Time)
+		frame[limb]=self:GetTransformAtTime(limb,Time) --The function calls the self:GetTransformAtTime method to get the transform.
 
 	end
 	return frame
 end
-function module.GetCurrentFrame(self:GuiAnimation)
+function module.GetCurrentFrame(self:GuiAnimation) --This function gets the current frame of the animation based on the CurrentTime.
 	return self:GetFrame(self.CurrentTime)
 end
-function module.GetCurrentFrameNum(self:GuiAnimation)
+function module.GetCurrentFrameNum(self:GuiAnimation) --This function converts the current time of the animation (CurrentTime) into a frame number by using the RoundTimeToFrame method.
 	return self:RoundTimeToFrame(self.CurrentTime)
 end
-function module.GetNextTimeStamp(self:GuiAnimation,limb,currentFrame):(KeyFrame?,number?)
-	local nextFrameNum,nextTimeStamp=nil,nil
-	for frameNum,timeStamp in pairs(self.KeyFrames[limb]) do
-		if tonumber(frameNum) > tonumber(currentFrame) and (not nextFrameNum or tonumber(nextFrameNum)>tonumber(frameNum)) then
+function module.GetNextTimeStamp(self:GuiAnimation,limb,currentFrame):(KeyFrame?,number?) --
+	local nextFrameNum,nextTimeStamp=nil,nil --
+	for frameNum,timeStamp in pairs(self.KeyFrames[limb]) do --
+		if tonumber(frameNum) > tonumber(currentFrame) and (not nextFrameNum or tonumber(nextFrameNum)>tonumber(frameNum)) then --
 			nextFrameNum,nextTimeStamp=frameNum, timeStamp
 		end
 	end
 	return nextTimeStamp,nextFrameNum
 end
-function module.GetPrevTimeStamp(self:GuiAnimation,limb,currentFrame):(KeyFrame?,number?)
-	local lastFrameNum,lastTimeStamp=nil,nil
-	for frameNum,timeStamp in pairs(self.KeyFrames[limb]) do
-		if tonumber(frameNum) < tonumber(currentFrame) and (not lastFrameNum or tonumber(lastFrameNum)<tonumber(frameNum)) then
+function module.GetPrevTimeStamp(self:GuiAnimation,limb,currentFrame):(KeyFrame?,number?) --
+	local lastFrameNum,lastTimeStamp=nil,nil --
+	for frameNum,timeStamp in pairs(self.KeyFrames[limb]) do --
+		if tonumber(frameNum) < tonumber(currentFrame) and (not lastFrameNum or tonumber(lastFrameNum)<tonumber(frameNum)) then --
 			lastFrameNum, lastTimeStamp=frameNum, timeStamp
 		end
 
 	end
 	return lastTimeStamp,lastFrameNum
 end
-function module.DeleteKeyFrames(self:GuiAnimation,frames:{[string]:{number}})
-	for limb,frames in pairs(frames) do
-		for _,frameNum in pairs(frames) do
-			self.KeyFrames[limb][frameNum]=nil
+function module.DeleteKeyFrames(self:GuiAnimation,frames:{[string]:{number}}) --
+	for limb,frames in pairs(frames) do --
+		for _,frameNum in pairs(frames) do --
+			self.KeyFrames[limb][frameNum]=nil --
 		end
 	end
 end
-function module.CreateKeyFrameAtFrame(self:GuiAnimation,limb:string,frame:number)
-	if not self.KeyFrames[limb] then
-		self.KeyFrames[limb]={}
+function module.CreateKeyFrameAtFrame(self:GuiAnimation,limb:string,frame:number) --
+	if not self.KeyFrames[limb] then --
+		self.KeyFrames[limb]={} --
 	end
-	if self.KeyFrames[limb][frame] then
-		return self.KeyFrames[limb][frame]
+	if self.KeyFrames[limb][frame] then --
+		return self.KeyFrames[limb][frame] --
 	end
-	local transformData = self:GetTransformAtTime(limb,self:FrameToTime(frame))
+	local transformData = self:GetTransformAtTime(limb,self:FrameToTime(frame)) --
 
-	local keyFrame = module.CreateKeyFrame(transformData.Transform,transformData.TransformAngle)
-	self.KeyFrames[limb][frame]=keyFrame
+	local keyFrame = module.CreateKeyFrame(transformData.Transform,transformData.TransformAngle) --
+	self.KeyFrames[limb][frame]=keyFrame --
 	return keyFrame
 end
-function module.UpdateKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame},frame:number)
+function module.UpdateKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame},frame:number) --
 
-	for limb,keyframeOverwrite in pairs(data) do
-		local keyframe = self:CreateKeyFrameAtFrame(limb,frame)
-		for prop,val in pairs(keyframeOverwrite)  do
+	for limb,keyframeOverwrite in pairs(data) do --
+		local keyframe = self:CreateKeyFrameAtFrame(limb,frame) --
+		for prop,val in pairs(keyframeOverwrite)  do --
 			keyframe[prop]=val
 		end
 	end
 end
-function module.UpdateKeyFrames(self:GuiAnimation,data:{[number]:{[string]:KeyFrame}})
-	for frame,keyFrame in pairs(data) do
-		self:UpdateKeyFrame(keyFrame,frame)
+function module.UpdateKeyFrames(self:GuiAnimation,data:{[number]:{[string]:KeyFrame}}) --
+	for frame,keyFrame in pairs(data) do --
+		self:UpdateKeyFrame(keyFrame,frame) --
 	end
 end
-function module.UpdateCurrentKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame})
-	self:UpdateKeyFrame(data, self:GetCurrentFrameNum())
+function module.UpdateCurrentKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame}) --
+	self:UpdateKeyFrame(data, self:GetCurrentFrameNum()) --
 end
-function module.GetTransformAtTime(self:GuiAnimation,limb,Time)
-	if not self.KeyFrames[limb] then return end
-	local frameNum,frameTime = self:RoundTimeToFrame(Time)
-	if tonumber(frameNum) == tonumber(frameTime) then
-		local keyFrame = self.KeyFrames[limb][frameNum]
-		if keyFrame then return keyFrame end
+function module.GetTransformAtTime(self:GuiAnimation,limb,Time) --
+	if not self.KeyFrames[limb] then return end --
+	local frameNum,frameTime = self:RoundTimeToFrame(Time) --
+	if tonumber(frameNum) == tonumber(frameTime) then --
+		local keyFrame = self.KeyFrames[limb][frameNum] --
+		if keyFrame then return keyFrame end --
 	end
-	local prevFrame,prevFrameNum = self:GetPrevTimeStamp(limb,frameTime)
-	local nextFrame,nextFrameNum=self:GetNextTimeStamp(limb,frameTime)
-	if prevFrame and nextFrame then
-		local alpha = tweenService:GetValue((frameTime-prevFrameNum)/(nextFrameNum-prevFrameNum),
-			prevFrame.EasingStyle or Enum.EasingStyle.Linear ,
+	local prevFrame,prevFrameNum = self:GetPrevTimeStamp(limb,frameTime) --
+	local nextFrame,nextFrameNum=self:GetNextTimeStamp(limb,frameTime) --
+	if prevFrame and nextFrame then --
+		local alpha = tweenService:GetValue((frameTime-prevFrameNum)/(nextFrameNum-prevFrameNum), --
+			prevFrame.EasingStyle or Enum.EasingStyle.Linear , -- --
 			prevFrame.EasingDirection or Enum.EasingDirection.In
 		)
 		return {
-			Transform = prevFrame.Transform:Lerp(nextFrame.Transform,alpha),
-			TransformAngle =prevFrame.TransformAngle+(nextFrame.TransformAngle-prevFrame.TransformAngle)*alpha 
+			Transform = prevFrame.Transform:Lerp(nextFrame.Transform,alpha), --
+			TransformAngle =prevFrame.TransformAngle+(nextFrame.TransformAngle-prevFrame.TransformAngle)*alpha  --
 		}
 	elseif prevFrame then
 		return {
 			Transform = prevFrame.Transform,
-			TransformAngle =prevFrame.TransformAngle 
+			TransformAngle =prevFrame.TransformAngle
 		}
 	elseif nextFrame then
 		return {
@@ -211,8 +211,8 @@ function module.GetTransformAtTime(self:GuiAnimation,limb,Time)
 		}
 	else
 		return {
-			Transform = UDim2.fromOffset(0,0),
-			TransformAngle =0
+			Transform = UDim2.fromOffset(0,0), --
+			TransformAngle =0 --
 		}
 	end
 end
