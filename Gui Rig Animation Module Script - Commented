@@ -1,4 +1,4 @@
---!nonstrict
+
 local rigModule = require(script.Parent.RigModule)
 local tweenService = game:GetService("TweenService")
 local module = {
@@ -6,8 +6,8 @@ local module = {
 }
 module.__index=module
 function module.new():GuiAnimation --Creates and returns a new instance of an animation object.
-	local animation = { --A table that defines the animation's behavior and state
-		KeyFrames=CreateTimeLine(), --The timeline of the animation
+	local animation = { --A table that defines the animation's behavior and state.
+		KeyFrames=CreateTimeLine(), --The timeline of the animation.
 		FPS=30, --Frames per second.
 		CurrentTime=0, --Current time of the animation.
 		TotalFrames=120, --Number of frames in the animation.
@@ -125,79 +125,79 @@ end
 function module.GetCurrentFrameNum(self:GuiAnimation) --This function converts the current time of the animation (CurrentTime) into a frame number by using the RoundTimeToFrame method.
 	return self:RoundTimeToFrame(self.CurrentTime)
 end
-function module.GetNextTimeStamp(self:GuiAnimation,limb,currentFrame):(KeyFrame?,number?) --
-	local nextFrameNum,nextTimeStamp=nil,nil --
-	for frameNum,timeStamp in pairs(self.KeyFrames[limb]) do --
-		if tonumber(frameNum) > tonumber(currentFrame) and (not nextFrameNum or tonumber(nextFrameNum)>tonumber(frameNum)) then --
+function module.GetNextTimeStamp(self:GuiAnimation,limb,currentFrame):(KeyFrame?,number?) --This function locates the next keyframe's timestamp and frame number.
+	local nextFrameNum,nextTimeStamp=nil,nil --These variables are initialized to nil. They will hold the next frame's number and timestamp.
+	for frameNum,timeStamp in pairs(self.KeyFrames[limb]) do --The function loops over all the keyframes for the specified limb.
+		if tonumber(frameNum) > tonumber(currentFrame) and (not nextFrameNum or tonumber(nextFrameNum)>tonumber(frameNum)) then --Ensures that the frame number being checked is greater than the currentFrame.
 			nextFrameNum,nextTimeStamp=frameNum, timeStamp
 		end
 	end
 	return nextTimeStamp,nextFrameNum
 end
-function module.GetPrevTimeStamp(self:GuiAnimation,limb,currentFrame):(KeyFrame?,number?) --
-	local lastFrameNum,lastTimeStamp=nil,nil --
-	for frameNum,timeStamp in pairs(self.KeyFrames[limb]) do --
-		if tonumber(frameNum) < tonumber(currentFrame) and (not lastFrameNum or tonumber(lastFrameNum)<tonumber(frameNum)) then --
+function module.GetPrevTimeStamp(self:GuiAnimation,limb,currentFrame):(KeyFrame?,number?) --This function finds the previous keyframe's timestamp and frame number before a given currentFrame.
+	local lastFrameNum,lastTimeStamp=nil,nil --These variables are initialized to nil. They will hold the previous frame's number and timestamp.
+	for frameNum,timeStamp in pairs(self.KeyFrames[limb]) do --The function loops over all the keyframes for the specified limb.
+		if tonumber(frameNum) < tonumber(currentFrame) and (not lastFrameNum or tonumber(lastFrameNum)<tonumber(frameNum)) then --Ensures that the frame number being checked is less than the currentFrame.
 			lastFrameNum, lastTimeStamp=frameNum, timeStamp
 		end
 
 	end
-	return lastTimeStamp,lastFrameNum
+	return lastTimeStamp,lastFrameNum --The function returns the timestamp and frame number of the previous keyframe.
 end
-function module.DeleteKeyFrames(self:GuiAnimation,frames:{[string]:{number}}) --
-	for limb,frames in pairs(frames) do --
-		for _,frameNum in pairs(frames) do --
-			self.KeyFrames[limb][frameNum]=nil --
+function module.DeleteKeyFrames(self:GuiAnimation,frames:{[string]:{number}}) --This function removes specific keyframes from the GuiAnimation object.
+	for limb,frames in pairs(frames) do --This loops through each limb and its associated frame numbers in the frames table.
+		for _,frameNum in pairs(frames) do --This loops through each frameNum (the frame number to delete) for the given limb.
+			self.KeyFrames[limb][frameNum]=nil --This line deletes the specified keyframe by setting it to nil in the KeyFrames table for the given limb.
 		end
 	end
 end
-function module.CreateKeyFrameAtFrame(self:GuiAnimation,limb:string,frame:number) --
-	if not self.KeyFrames[limb] then --
-		self.KeyFrames[limb]={} --
+function module.CreateKeyFrameAtFrame(self:GuiAnimation,limb:string,frame:number) --This function either creates or retrieves a keyframe for a specific limb at a given frame number.
+	if not self.KeyFrames[limb] then --This ensures that there is a table for the specified limb in the KeyFrames table.
+		self.KeyFrames[limb]={} 
 	end
-	if self.KeyFrames[limb][frame] then --
-		return self.KeyFrames[limb][frame] --
+	if self.KeyFrames[limb][frame] then --This checks if a keyframe already exists at the specified frame for the given limb.
+		return self.KeyFrames[limb][frame] --If a keyframe already exists at that frame, the function returns the existing keyframe without creating a new one.
 	end
-	local transformData = self:GetTransformAtTime(limb,self:FrameToTime(frame)) --
+	local transformData = self:GetTransformAtTime(limb,self:FrameToTime(frame)) --The function calls self:GetTransformAtTime() to retrieve the transform data.
 
-	local keyFrame = module.CreateKeyFrame(transformData.Transform,transformData.TransformAngle) --
-	self.KeyFrames[limb][frame]=keyFrame --
-	return keyFrame
+	local keyFrame = module.CreateKeyFrame(transformData.Transform,transformData.TransformAngle) --A new keyframe is created, passing in the transform and angle data from transformData.
+	self.KeyFrames[limb][frame]=keyFrame --The newly created keyframe is stored in the KeyFrames table at the specific frame for the limb.
+	return keyFrame --The newly created keyframe is returned.
 end
-function module.UpdateKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame},frame:number) --
+function module.UpdateKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame},frame:number) --This function updates or modifies the properties of an existing keyframe for a specified limb at a given frame.
 
-	for limb,keyframeOverwrite in pairs(data) do --
-		local keyframe = self:CreateKeyFrameAtFrame(limb,frame) --
-		for prop,val in pairs(keyframeOverwrite)  do --
+	for limb,keyframeOverwrite in pairs(data) do --This loop iterates over the data table, where each entry contains a limb.
+		local keyframe = self:CreateKeyFrameAtFrame(limb,frame) --The function calls self:CreateKeyFrameAtFrame() to either create a new keyframe or retrieve an existing keyframe for the given limb at the specified frame.
+		for prop,val in pairs(keyframeOverwrite) do --This inner loop goes through each property (prop) and value (val) in the keyframeOverwrite object.
 			keyframe[prop]=val
 		end
 	end
 end
-function module.UpdateKeyFrames(self:GuiAnimation,data:{[number]:{[string]:KeyFrame}}) --
-	for frame,keyFrame in pairs(data) do --
-		self:UpdateKeyFrame(keyFrame,frame) --
+function module.UpdateKeyFrames(self:GuiAnimation,data:{[number]:{[string]:KeyFrame}}) --This function updates keyframes for multiple frames in the animation.
+	for frame,keyFrame in pairs(data) do --This loop iterates over the data table, where each entry corresponds to a frame number and a keyframe object.
+		self:UpdateKeyFrame(keyFrame,frame) --For each frame, it calls the UpdateKeyFrame function, passing the keyFrame data (containing the updated keyframe information for various limbs) and the frame number.
 	end
 end
-function module.UpdateCurrentKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame}) --
-	self:UpdateKeyFrame(data, self:GetCurrentFrameNum()) --
+function module.UpdateCurrentKeyFrame(self:GuiAnimation,data:{[string]:KeyFrame}) --This function updates the keyframe at the current frame of the animation.
+	self:UpdateKeyFrame(data, self:GetCurrentFrameNum()) --It then calls self:UpdateKeyFrame() with the data.
 end
-function module.GetTransformAtTime(self:GuiAnimation,limb,Time) --
-	if not self.KeyFrames[limb] then return end --
-	local frameNum,frameTime = self:RoundTimeToFrame(Time) --
-	if tonumber(frameNum) == tonumber(frameTime) then --
-		local keyFrame = self.KeyFrames[limb][frameNum] --
-		if keyFrame then return keyFrame end --
+function module.GetTransformAtTime(self:GuiAnimation,limb,Time) 
+	if not self.KeyFrames[limb] then return end 
+	local frameNum,frameTime = self:RoundTimeToFrame(Time) 
+	if tonumber(frameNum) == tonumber(frameTime) then 
+		local keyFrame = self.KeyFrames[limb][frameNum] 
+		if keyFrame then return keyFrame end 
 	end
-	local prevFrame,prevFrameNum = self:GetPrevTimeStamp(limb,frameTime) --
-	local nextFrame,nextFrameNum=self:GetNextTimeStamp(limb,frameTime) --
-	if prevFrame and nextFrame then --
-		local alpha = tweenService:GetValue((frameTime-prevFrameNum)/(nextFrameNum-prevFrameNum), --
-			prevFrame.EasingStyle or Enum.EasingStyle.Linear , -- --
+	local prevFrame,prevFrameNum = self:GetPrevTimeStamp(limb,frameTime) 
+	local nextFrame,nextFrameNum=self:GetNextTimeStamp(limb,frameTime)
+	if prevFrame and nextFrame then 
+		local alpha = tweenService:GetValue((frameTime-prevFrameNum)/(nextFrameNum-prevFrameNum), 
+			prevFrame.EasingStyle or Enum.EasingStyle.Linear , 
 			prevFrame.EasingDirection or Enum.EasingDirection.In
 		)
 		return {
-			Transform = prevFrame.Transform:Lerp(nextFrame.Transform,alpha), --
-			TransformAngle =prevFrame.TransformAngle+(nextFrame.TransformAngle-prevFrame.TransformAngle)*alpha  --
+			Transform = prevFrame.Transform:Lerp(nextFrame.Transform,alpha), 
+			TransformAngle =prevFrame.TransformAngle+(nextFrame.TransformAngle-prevFrame.TransformAngle)*alpha  
 		}
 	elseif prevFrame then
 		return {
@@ -211,8 +211,8 @@ function module.GetTransformAtTime(self:GuiAnimation,limb,Time) --
 		}
 	else
 		return {
-			Transform = UDim2.fromOffset(0,0), --
-			TransformAngle =0 --
+			Transform = UDim2.fromOffset(0,0), 
+			TransformAngle =0 
 		}
 	end
 end
