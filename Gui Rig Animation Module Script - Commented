@@ -49,60 +49,60 @@ function module.new():GuiAnimation --Creates and returns a new instance of an an
 	setmetatable(animation,module) --This allows the animation table to use or inherit functions and properties from the module.
 	return animation --This returns the animation object (the table) from the function.
 end
-function module.CreateKeyFrame(Transform:UDim2,TransformAngle:number,EasingStyle:Enum.EasingStyle?,EasingDirection:Enum.EasingDirection?)
+function module.CreateKeyFrame(Transform:UDim2,TransformAngle:number,EasingStyle:Enum.EasingStyle?,EasingDirection:Enum.EasingDirection?) --Creates a keyframe for an animation, encapsulating an object's position, size, rotation, and easing behavior at a specific point in time.
 
 	local keyframe = {
-		Name="KeyFrame",
-		Transform=Transform or UDim2.new(),
-		TransformAngle=TransformAngle or 0,
-		EasingStyle=EasingStyle or Enum.EasingStyle.Linear ,
-		EasingDirection=EasingDirection or Enum.EasingDirection.In
+		Name="KeyFrame", --The name of the keyframe.
+		Transform=Transform or UDim2.new(), --Defaults to UDim2.new().
+		TransformAngle=TransformAngle or 0, --Defaults to 0, meaning no rotation.
+		EasingStyle=EasingStyle or Enum.EasingStyle.Linear , --Defaults to Enum.EasingStyle.Linear, so the animation progresses at a constant speed.
+		EasingDirection=EasingDirection or Enum.EasingDirection.In --If no EasingDirection is provided, this defaults to In.
 	}
 	return keyframe
 end
-function module.Export(self:GuiAnimation,name:string,parent:Instance)
-	local animationFolder = Instance.new("Animation",parent)
+function module.Export(self:GuiAnimation,name:string,parent:Instance) --Creates an Animation folder to hold animation data.
+	local animationFolder = Instance.new("Animation",parent) --A new Animation instance is created and parented to the parent instance.
 	if name then animationFolder.Name = name end
-	animationFolder:SetAttribute("FPS",self.FPS)
-	animationFolder:SetAttribute("TotalFrames",self.TotalFrames)
-	animationFolder:SetAttribute("Loops",self.Loops)
-	for limb,keyFrames in pairs(self.KeyFrames) do
-		local jointFolder = Instance.new("Folder",animationFolder) 
-		jointFolder.Name = limb
-		for frameNum,keyFrame:KeyFrame in pairs(keyFrames) do
-			local frameInstance = Instance.new("IntValue",jointFolder)
-			frameInstance.Name=keyFrame.Name
-			frameInstance.Value=tonumber(frameNum)
-			frameInstance:SetAttribute("Transform",keyFrame.Transform)
-			frameInstance:SetAttribute("TransformAngle",keyFrame.TransformAngle)
-			frameInstance:SetAttribute("EasingStyle",keyFrame.EasingStyle.Value)
-			frameInstance:SetAttribute("EasingDirection",keyFrame.EasingDirection.Value)
+	animationFolder:SetAttribute("FPS",self.FPS) --Frames per second (from the GuiAnimation object).
+	animationFolder:SetAttribute("TotalFrames",self.TotalFrames) --The total number of frames in the animation.
+	animationFolder:SetAttribute("Loops",self.Loops) --Whether the animation should loop (Boolean).
+	for limb,keyFrames in pairs(self.KeyFrames) do --Tterates through each limb in the animation (self.KeyFrames).
+		local jointFolder = Instance.new("Folder",animationFolder) --A new Folder is created and named after the limb and this folder is parented to the animationFolder.
+		jointFolder.Name = limb 
+		for frameNum,keyFrame:KeyFrame in pairs(keyFrames) do --Iterates through each keyFrame of the limb.
+			local frameInstance = Instance.new("IntValue",jointFolder) --
+			frameInstance.Name=keyFrame.Name --The frameNum is used as the Value for the IntValue instance.
+			frameInstance.Value=tonumber(frameNum) --
+			frameInstance:SetAttribute("Transform",keyFrame.Transform) --The position/size of the object at the keyframe (as UDim2).
+			frameInstance:SetAttribute("TransformAngle",keyFrame.TransformAngle) --The rotation angle of the object at the keyframe.
+			frameInstance:SetAttribute("EasingStyle",keyFrame.EasingStyle.Value) --The easing style used in the animation (e.g., linear, sine).
+			frameInstance:SetAttribute("EasingDirection",keyFrame.EasingDirection.Value) --The easing direction.
 		end 
 	end
 	return animationFolder
 end
-function module:Import(animationInstance:Folder)
-	local animation = module.new()
-	animation.FPS= animationInstance:GetAttribute("FPS")
-	animation.TotalFrames= animationInstance:GetAttribute("TotalFrames")
-	animation.Loops= animationInstance:GetAttribute("Loops")
-	for _,jointFrames in pairs(animationInstance:GetChildren()) do
-		animation.KeyFrames[jointFrames.Name]={}
-		for _,KeyFrameData in pairs(jointFrames:GetChildren()) do
-			local keyFrame = module.CreateKeyFrame(
-				KeyFrameData:GetAttribute("Transform"),
-				KeyFrameData:GetAttribute("TransformAngle"),
-				Enum.EasingStyle:GetEnumItems()[KeyFrameData:GetAttribute("EasingStyle")+1],
-				Enum.EasingDirection:GetEnumItems()[KeyFrameData:GetAttribute("EasingDirection")+1]
+function module:Import(animationInstance:Folder) --A Folder instance that contains the animation data.
+	local animation = module.new() --A new GuiAnimation object is created using the module.new() function
+	animation.FPS= animationInstance:GetAttribute("FPS") --The function reads the attributes (FPS, TotalFrames, and Loops)
+	animation.TotalFrames= animationInstance:GetAttribute("TotalFrames") --from the animationInstance folder
+	animation.Loops= animationInstance:GetAttribute("Loops") --and sets them in the animation object.
+	for _,jointFrames in pairs(animationInstance:GetChildren()) do --The function then loops through each child in the animationInstance folder.
+		animation.KeyFrames[jointFrames.Name]={} --It creates an empty table in animation.KeyFrames to store the keyframes for that joint.
+		for _,KeyFrameData in pairs(jointFrames:GetChildren()) do --For each joint, the function loops through the keyframe data stored in the joint folder.
+			local keyFrame = module.CreateKeyFrame( --It creates a keyFrame object by calling the module.CreateKeyFrame() function.
+				KeyFrameData:GetAttribute("Transform"), --The position/size data for the keyframe.
+				KeyFrameData:GetAttribute("TransformAngle"), --The rotation angle of the keyframe..
+				Enum.EasingStyle:GetEnumItems()[KeyFrameData:GetAttribute("EasingStyle")+1], --The easing style.
+				Enum.EasingDirection:GetEnumItems()[KeyFrameData:GetAttribute("EasingDirection")+1] --The easing direction.
 			)
-			animation.KeyFrames[jointFrames.Name][KeyFrameData.Value]=keyFrame
+			animation.KeyFrames[jointFrames.Name][KeyFrameData.Value]=keyFrame --The newly created keyFrame is stored in the KeyFrames table under the joint's name.
 		end
 	end
-	return animation
+	return animation --The function then returns the animation object.
 end
-function CreateTimeLine()
-	local KeyFrames:{[string]:TimeStamps}={}
-	return KeyFrames
+function CreateTimeLine() --A function that creates a TimeLine object.
+	local KeyFrames:{[string]:TimeStamps}={} --The keys are strings. The values are TimeStamps.
+	return KeyFrames --The function then returns this empty KeyFrames table.
 end
 function module.RoundTimeToFrame(self:GuiAnimation, Time)
 	return math.round(Time*self.FPS)+1,Time*self.FPS+1
